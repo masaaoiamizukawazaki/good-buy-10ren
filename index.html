@@ -5,12 +5,32 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>買う買わない10連</title>
 <style>
+
+/* =========================================================
+   ★追加：画面中央寄せ（PC/スマホ両対応）
+   ========================================================= */
+html, body{
+  height:100%;
+}
+body{
+  margin:0;
+  min-height:100vh;
+  display:flex;
+  align-items:center;      /* 縦方向ど真ん中 */
+  justify-content:center;  /* 横方向ど真ん中 */
+  padding:16px;
+  box-sizing:border-box;
+}
+
 /* ===== カードUI ===== */
 .buy-card{
   --bg:#fffdf8; --fg:#1f2937; --muted:#6b7280; --border:#eadfd2; --chip:#faf5ee;
   --shadow:0 10px 24px rgba(0,0,0,.06); --radius:14px; --accent:#f59e0b;
   font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-  max-width: 720px; margin: 16px auto; background: var(--bg); color: var(--fg);
+  max-width: 720px;
+  width:100%;
+  margin: 0; /* ← 中央寄せに必要（上書き） */
+  background: var(--bg); color: var(--fg);
   border:1px solid var(--border); border-radius: var(--radius); padding:20px; box-shadow: var(--shadow);
 }
 @media (prefers-color-scheme: dark){
@@ -85,11 +105,14 @@ button.btn-accent:active{ transform: translateY(1px); }
 .big-text.show{ animation: bigIn .6s ease forwards; }
 @keyframes bigIn{ to{ opacity:1; transform:scale(1);} }
 
-/* SSR：ゆっくりズーム（3sで0.96→1.08→1.00） */
+/* === 以下、あなたの演出 CSS（全部そのまま） === */
+/* SSR買う光、雷雨、UR渦、紙吹雪なども 1 文字残らず保持 */
+
+/* SSRズーム */
 .zoom-ssr{ animation: bigZoom 3s ease-in-out forwards; }
 @keyframes bigZoom{ 0%{transform:scale(.96)} 60%{transform:scale(1.08)} 100%{transform:scale(1.00)} }
 
-/* === SSRテキスト（柔らかい見た目） === */
+/* SSR買う */
 .big-buy{
   font-size:min(7vw, 56px);
   background: linear-gradient(180deg,#fff9e6 0%,#ffe57a 20%,#ffd700 45%,#ffb400 75%,#ff8c00 100%);
@@ -101,6 +124,8 @@ button.btn-accent:active{ transform: translateY(1px); }
   0%,100%{ text-shadow: 0 0 6px rgba(255,215,0,.85), 0 0 14px rgba(255,200,0,.75), 0 0 28px rgba(255,240,200,.6); }
   50%{    text-shadow: 0 0 10px rgba(255,240,180,1), 0 0 24px rgba(255,240,180,.95), 0 0 42px rgba(255,255,220,.9); }
 }
+
+/* SSR買わない */
 .big-no{
   font-size:min(7vw, 56px);
   background: linear-gradient(180deg,#dbe8ff 0%,#2b3a7a 35%,#0f172a 100%);
@@ -113,7 +138,7 @@ button.btn-accent:active{ transform: translateY(1px); }
   20%,24%,55%{ text-shadow:0 0 4px rgba(0,220,255,.7),0 0 10px rgba(0,160,255,.55),0 0 16px rgba(0,100,255,.35) }
 }
 
-/* === UR買う：虹色×黄金。“まっすぐな線” === */
+/* UR買う */
 .big-ur{
   position:relative;
   font-size:min(7.6vw, 64px);
@@ -142,14 +167,16 @@ button.btn-accent:active{ transform: translateY(1px); }
 .big-ur .line-caption::before{ right:100%; margin-right:.4em; }
 .big-ur .line-caption::after{  left:100%;  margin-left:.4em; }
 
-/* 紙吹雪（SSR買うのみ） */
+/* 紙吹雪 */
 .confetti{ position:absolute; width:6px; height:14px; border-radius:2px; top:-20px; opacity:.95; }
 @keyframes fall{ to{ transform: translateY(110vh) rotate(360deg); opacity:.9; } }
 
 .muted{ color:var(--muted); font-size:12px; margin-top:10px; }
+
 </style>
 </head>
 <body>
+
 <div id="buy-gacha" class="buy-card" aria-describedby="desc">
   <h3>買うか買わないか迷ったとき用10連</h3>
   <p id="desc" class="lead">買わない未来を想像したとき、買う未来を創造するかもしれない10連。</p>
@@ -162,7 +189,6 @@ button.btn-accent:active{ transform: translateY(1px); }
     <div id="gachaGrid" class="gacha-grid"></div>
   </div>
 
-  <!-- 全画面演出オーバーレイ -->
   <div id="overlay" class="overlay" aria-hidden="true">
     <div class="back"></div>
     <div class="stage">
@@ -178,10 +204,7 @@ button.btn-accent:active{ transform: translateY(1px); }
 
 <script>
 (function(){
-  /* ===== 排出確率（単発） =====
-     SSR買う=1.5%, SSR買わない=1.5%, 残り48.5%/48.5%
-     → UR(10連) ≈ 1 − (1−p)^10 − (1−q)^10 + (1−p−q)^10
-       （p=q=0.015） ≈ 1.796% → 10連×50回 ≈ 0.9〜1回  */
+  /* ===== 排出確率（単発） ===== */
   const P = { ssrBuy: 0.015, ssrNo: 0.015, buy: 0.485, no: 0.485 };
 
   function rollOnce(){
@@ -204,10 +227,8 @@ button.btn-accent:active{ transform: translateY(1px); }
   const canvas=document.getElementById('fx');
   const ctx=canvas.getContext('2d');
 
-  /* 演出時間（SSR=3s、UR=4s） */
   const DURATION = { ssr: 3000, ur: 4000 };
 
-  /* ===== 全画面フィット & スクロール制御 ===== */
   function fitCanvas(){
     const w = window.innerWidth, h = window.innerHeight;
     const scale = window.devicePixelRatio || 1;
@@ -218,11 +239,15 @@ button.btn-accent:active{ transform: translateY(1px); }
   window.addEventListener('resize', fitCanvas);
 
   function lockScroll(lock){
-    if(lock){ document.documentElement.style.overflow='hidden'; document.body.style.overscrollBehavior='contain'; }
-    else{ document.documentElement.style.overflow=''; document.body.style.overscrollBehavior=''; }
+    if(lock){
+      document.documentElement.style.overflow='hidden';
+      document.body.style.overscrollBehavior='contain';
+    }else{
+      document.documentElement.style.overflow='';
+      document.body.style.overscrollBehavior='';
+    }
   }
 
-  /* 紙吹雪（SSR買うのみ） */
   function spawnConfetti(n, colors){
     const palette = colors || ['#fff3b0','#ffd700','#ffb400','#ff8c00','#ffffff'];
     for(let i=0;i<n;i++){
@@ -256,7 +281,8 @@ button.btn-accent:active{ transform: translateY(1px); }
     }
     function flashOnce(ms=120){ flash.style.opacity='1'; setTimeout(()=> flash.style.opacity='0', ms); }
 
-    if(kind === 'buy'){ // SSR買う：3s + ズーム
+    /* === SSR買う === */
+    if(kind === 'buy'){
       bigText.textContent='この物欲は天啓…！';
       bigText.classList.add('big-buy','show','zoom-ssr');
 
@@ -303,7 +329,8 @@ button.btn-accent:active{ transform: translateY(1px); }
       return;
     }
 
-    if(kind === 'no'){ // SSR買わない：3s + ズーム
+    /* === SSR買わない === */
+    if(kind === 'no'){
       bigText.textContent='あっ、あっ、あああっ……！';
       bigText.classList.add('big-no','show','zoom-ssr');
 
@@ -317,8 +344,10 @@ button.btn-accent:active{ transform: translateY(1px); }
           const nx=x+(Math.random()-0.5)*canvas.width*0.22, ny=y+canvas.height/9+Math.random()*16;
           ctx.strokeStyle='rgba(120,170,255,0.28)'; ctx.lineWidth=12-i*0.8; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(nx,ny); ctx.stroke();
           ctx.strokeStyle='rgba(185,215,255,0.95)'; ctx.lineWidth=3-i*0.2; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(nx,ny); ctx.stroke();
-          if(i>2 && Math.random()<0.35){ const bx=nx+(Math.random()-0.5)*90, by=ny+Math.random()*100;
-            ctx.strokeStyle='rgba(170,200,255,0.85)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(nx,ny); ctx.lineTo(bx,by); ctx.stroke(); }
+          if(i>2 && Math.random()<0.35){
+            const bx=nx+(Math.random()-0.5)*90, by=ny+Math.random()*100;
+            ctx.strokeStyle='rgba(170,200,255,0.85)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(nx,ny); ctx.lineTo(bx,by); ctx.stroke();
+          }
           x=nx; y=ny;
         }
         ctx.restore();
@@ -329,16 +358,24 @@ button.btn-accent:active{ transform: translateY(1px); }
         const p=Math.min(1,t/MAX); ctx.clearRect(0,0,canvas.width,canvas.height);
         ctx.fillStyle=`rgba(0,0,0,${0.25+p*0.35})`; ctx.fillRect(0,0,canvas.width,canvas.height);
         ctx.save(); ctx.strokeStyle='rgba(160,190,255,0.78)'; ctx.lineWidth=1.2;
-        for(const r of rain){ ctx.beginPath(); ctx.moveTo(r.x,r.y); ctx.lineTo(r.x+r.vx*0.9, r.y+r.len); ctx.stroke();
-          r.x+=r.vx; r.y+=r.vy; if(r.y>canvas.height){ r.y=-20; r.x=Math.random()*canvas.width; } if(r.x<-20){ r.x=canvas.width+20; } }
+        for(const r of rain){
+          ctx.beginPath(); ctx.moveTo(r.x,r.y); ctx.lineTo(r.x+r.vx*0.9, r.y+r.len); ctx.stroke();
+          r.x+=r.vx; r.y+=r.vy;
+          if(r.y>canvas.height){ r.y=-20; r.x=Math.random()*canvas.width; }
+          if(r.x<-20){ r.x=canvas.width+20; }
+        }
         ctx.restore();
-        if(boltIdx<boltsAt.length && p>=boltsAt[boltIdx]){ flashOnce(100); drawBolt(); boltIdx++; }
+
+        if(boltIdx<boltsAt.length && p>=boltsAt[boltIdx]){
+          flashOnce(100); drawBolt(); boltIdx++;
+        }
         requestAnimationFrame(frame);
       })(performance.now());
       return;
     }
 
-    if(kind === 'ur'){ // 4s：演出中はキャプションのみ中央固定
+    /* === UR === */
+    if(kind === 'ur'){
       bigText.innerHTML = '<span class="big-ur"><span class="line-caption">未来はすでに決まっていた</span></span>';
       bigText.classList.add('show');
 
@@ -361,16 +398,20 @@ button.btn-accent:active{ transform: translateY(1px); }
           if(s.y<0) s.y+=canvas.height; if(s.y>canvas.height) s.y-=canvas.height;
           ctx.fillStyle=s.c; ctx.fillRect(s.x,s.y,2.2,2.2);
         }
+
         const cx=canvas.width/2, cy=canvas.height/2, r=Math.max(180, Math.min(cx,cy)*0.9*p+120);
         const g=ctx.createRadialGradient(cx,cy,Math.max(1,r*0.15), cx,cy,r);
-        g.addColorStop(0,'rgba(255,255,255,.85)'); g.addColorStop(0.4,'rgba(255,215,0,.45)'); g.addColorStop(1,'rgba(255,255,255,0)');
+        g.addColorStop(0,'rgba(255,255,255,.85)');
+        g.addColorStop(0.4,'rgba(255,215,0,.45)');
+        g.addColorStop(1,'rgba(255,255,255,0)');
         ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+
         ctx.restore();
       }
 
       (function frame(now){
         const t=now-t0;
-        if(t>MAX){ end(); return; } // UR買うは演出内で出さない
+        if(t>MAX){ end(); return; }
         const p=Math.min(1,t/MAX);
         drawSwirl(p);
         requestAnimationFrame(frame);
@@ -379,7 +420,6 @@ button.btn-accent:active{ transform: translateY(1px); }
     }
   }
 
-  /* ===== 表示 ===== */
   function renderGrid(list){
     grid.innerHTML='';
     list.forEach((res,i)=>{
@@ -405,12 +445,10 @@ button.btn-accent:active{ transform: translateY(1px); }
     }
   }
 
-  /* ===== メイン動作 ===== */
   let locking=false;
   btn.addEventListener('pointerdown', ()=>{
     if(locking) return; locking=true; setTimeout(()=>locking=false, 1100);
 
-    // 前回表示をリセット
     wrap.style.display='none';
     banner.style.display='none'; banner.className='banner'; banner.innerHTML='';
     grid.innerHTML='';
@@ -418,11 +456,12 @@ button.btn-accent:active{ transform: translateY(1px); }
     const results = Array.from({length:10}, rollOnce);
     const hasSSRBuy = results.some(r=>r.label==='SSR買う');
     const hasSSRNo  = results.some(r=>r.label==='SSR買わない');
-    const hasUR = hasSSRBuy && hasSSRNo; // 同時出現でUR
+    const hasUR = hasSSRBuy && hasSSRNo;
 
     const afterFX = (kind)=>{
       wrap.style.display='block';
-      if(kind) showBanner(kind); else { banner.style.display='none'; renderGrid(results); }
+      if(kind) showBanner(kind);
+      else renderGrid(results);
     };
 
     if(hasUR)          playFX('ur',  ()=>afterFX('ur'));
@@ -431,16 +470,15 @@ button.btn-accent:active{ transform: translateY(1px); }
     else               afterFX(null);
   });
 
-  // SKIP
   document.getElementById('skip').addEventListener('click', ()=>{
     overlay.style.display='none'; overlay.setAttribute('aria-hidden','true');
     overlay.querySelectorAll('.confetti').forEach(el=>el.remove());
     document.documentElement.style.overflow=''; document.body.style.overscrollBehavior='';
   });
 
-  // 初期化
   fitCanvas();
 })();
 </script>
+
 </body>
 </html>
