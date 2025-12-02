@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>買う買わない10連</title>
+<style>
+/* ===== カードUI ===== */
+.buy-card{
+  --bg:#fffdf8; --fg:#1f2937; --muted:#6b7280; --border:#eadfd2; --chip:#faf5ee;
+  --shadow:0 10px 24px rgba(0,0,0,.06); --radius:14px; --accent:#f59e0b;
+  font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  max-width: 720px; margin: 16px auto; background: var(--bg); color: var(--fg);
+  border:1px solid var(--border); border-radius: var(--radius); padding:20px; box-shadow: var(--shadow);
+}
+@media (prefers-color-scheme: dark){
+  .buy-card{ --bg:#0f1113; --fg:#e5e7eb; --muted:#a3a3a3; --border:#1f2937; --chip:#15181b; --shadow:0 10px 24px rgba(0,0,0,.35); }
+}
+.buy-card h3{ margin:0 0 6px; font-size:20px; letter-spacing:.2px; }
+.buy-card p.lead{ margin:0 0 14px; font-size:14px; color:var(--muted); }
+button.btn-accent{
+  appearance:none; border:1px solid color-mix(in oklab, var(--accent), black 12%);
+  background: var(--accent); color:#1a1300; font-weight:600;
+  border-radius:10px; padding:10px 14px; cursor:pointer;
+  transition:transform .03s ease, filter .2s ease;
+  box-shadow:0 2px 0 color-mix(in oklab, var(--accent), black 24%);
+}
+button.btn-accent:hover{ filter:saturate(1.06) brightness(1.02); }
+button.btn-accent:active{ transform: translateY(1px); }
+
+/* ===== 結果カード ===== */
+.gacha{ display:none; margin-top:14px; padding:12px; background: var(--chip); border-radius:12px; }
+.gacha-grid{ display:grid; gap:8px; margin-top:8px; grid-template-columns: repeat(5, minmax(0,1fr)); }
+.chip{
+  display:flex; align-items:center; justify-content:center; border-radius:10px; padding:8px 6px;
+  font-size:12px; color:#fff; text-align:center; min-height:36px; transform: rotateY(90deg); opacity:0;
+}
+.chip.revealed{ animation: flipIn .35s ease-out forwards; }
+@keyframes flipIn{ 0%{ transform: rotateY(90deg); opacity:0 } 100%{ transform: rotateY(0); opacity:1 } }
+.b-ssr-buy{ background: linear-gradient(135deg,#ffd700,#ffb400,#ff8c00); color:#000; font-weight:800; text-shadow:0 0 4px rgba(255,255,255,.8); }
+.b-ssr-no{  background: linear-gradient(135deg,#1e3a8a,#0f172a); color:#fff; font-weight:800; text-shadow:0 0 4px rgba(0,0,0,.8); }
+.b-buy{ background:#10b981; } .b-no{ background:#ef4444; }
+
+/* ===== バナー（SSR/UR） ===== */
+.banner{
+  display:none; text-align:center; color:#fff; border-radius:16px; padding:26px 14px;
+  font-weight:900; font-size:28px; letter-spacing:.16em;
+  text-shadow:0 2px 16px rgba(0,0,0,.35);
+  box-shadow:0 10px 28px rgba(0,0,0,.18), inset 0 0 24px rgba(255,255,255,.15);
+}
+.banner-ssr-buy{ background: linear-gradient(135deg,#ffd700,#ffb400,#ff8c00); }
+.banner-ssr-no{  background: linear-gradient(135deg,#0b1025,#0f172a 40%,#1e3a8a 100%); }
+.banner-ur{       background: linear-gradient(135deg,#fff3b0,#ffd700,#ff7bd5,#7bd7ff); }
+.banner-text{ display:inline-block; padding:4px 8px; border-radius:10px; }
+.banner-gold{
+  background: linear-gradient(180deg,#fff9e6 0%,#ffe57a 20%,#ffd700 45%,#ffb400 75%,#ff8c00 100%);
+  background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  text-shadow: 0 0 2px rgba(255,255,255,.9), 0 0 8px rgba(255,220,120,.9), 0 0 18px rgba(255,200,60,.85);
+}
+.banner-doom{
+  background: linear-gradient(180deg,#e6f2ff 0%,#7fb6ff 35%,#1e3a8a 70%,#0f172a 100%);
+  background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  text-shadow: 0 0 2px rgba(200,230,255,.9), 0 0 10px rgba(80,120,255,.7), 0 0 22px rgba(20,60,180,.75);
+}
+.banner-ur-text{
+  background: linear-gradient(180deg,#fff9e6 0%,#ffd700 35%,#ff7bd5 70%,#7bd7ff 100%);
+  background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  text-shadow: 0 0 10px rgba(255,255,220,.95), 0 0 26px rgba(255,200,120,.85), 0 0 40px rgba(255,180,230,.75);
+}
+
+/* ===== 全画面演出 ===== */
+.overlay{ position:fixed; inset:0; z-index:9999; display:none; align-items:center; justify-content:center; overscroll-behavior:contain; touch-action:none; }
+.overlay .back{ position:absolute; inset:0; background: radial-gradient(ellipse at center, rgba(0,0,0,.25), rgba(0,0,0,.55)); z-index:0; }
+.stage{ position:relative; text-align:center; width:100vw; height:100vh; }
+#fx{ position:absolute; inset:0; z-index:1; width:100vw; height:100vh; background:transparent; }
+.flash{ position:absolute; inset:0; z-index:3; pointer-events:none; background: radial-gradient(circle at center, rgba(255,255,255,.95), rgba(255,255,255,0) 60%); opacity:0; transition:opacity .12s; }
+.skip{ position:absolute; right:8px; top:8px; z-index:4; appearance:none; border:1px solid rgba(255,255,255,.6); background:rgba(0,0,0,.25); color:#fff; border-radius:999px; padding:6px 10px; cursor:pointer; font-size:12px; }
+
+/* 中央テキスト（共通） */
+.big-text{
+  position:absolute; inset:0; z-index:2; display:flex; align-items:center; justify-content:center;
+  font-weight:900; letter-spacing:.08em; text-align:center; pointer-events:none;
+  opacity:0; transform:scale(.94);
+}
+.big-text.show{ animation: bigIn .6s ease forwards; }
+@keyframes bigIn{ to{ opacity:1; transform:scale(1);} }
+
+/* SSR：ゆっくりズーム（3sで0.96→1.08→1.00） */
+.zoom-ssr{ animation: bigZoom 3s ease-in-out forwards; }
+@keyframes bigZoom{ 0%{transform:scale(.96)} 60%{transform:scale(1.08)} 100%{transform:scale(1.00)} }
+
+/* === SSRテキスト（柔らかい見た目） === */
+.big-buy{
+  font-size:min(7vw, 56px);
+  background: linear-gradient(180deg,#fff9e6 0%,#ffe57a 20%,#ffd700 45%,#ffb400 75%,#ff8c00 100%);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  text-shadow: 0 0 6px rgba(255,215,0,.85), 0 0 14px rgba(255,200,0,.75), 0 0 28px rgba(255,240,200,.6);
+  animation: pulseGold 2.6s ease-in-out infinite;
+}
+@keyframes pulseGold{
+  0%,100%{ text-shadow: 0 0 6px rgba(255,215,0,.85), 0 0 14px rgba(255,200,0,.75), 0 0 28px rgba(255,240,200,.6); }
+  50%{    text-shadow: 0 0 10px rgba(255,240,180,1), 0 0 24px rgba(255,240,180,.95), 0 0 42px rgba(255,255,220,.9); }
+}
+.big-no{
+  font-size:min(7vw, 56px);
+  background: linear-gradient(180deg,#dbe8ff 0%,#2b3a7a 35%,#0f172a 100%);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  text-shadow: 0 0 4px rgba(190,0,0,.65), 0 0 14px rgba(120,0,0,.45), 0 0 26px rgba(0,0,40,.8);
+  animation: flickerBlue 1.8s infinite;
+}
+@keyframes flickerBlue{
+  0%,18%,22%,25%,53%,57%,100%{ text-shadow:0 0 10px rgba(0,220,255,.95),0 0 24px rgba(0,160,255,.7),0 0 38px rgba(0,100,255,.5) }
+  20%,24%,55%{ text-shadow:0 0 4px rgba(0,220,255,.7),0 0 10px rgba(0,160,255,.55),0 0 16px rgba(0,100,255,.35) }
+}
+
+/* === UR買う：虹色×黄金。“まっすぐな線” === */
+.big-ur{
+  position:relative;
+  font-size:min(7.6vw, 64px);
+  line-height:1.2;
+  color:transparent;
+  background: linear-gradient(180deg,#fff9e6 0%,#ffd700 35%,#ff7bd5 70%,#7bd7ff 100%);
+  background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  -webkit-text-stroke: 1px rgba(0,0,0,.30);
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,.35)) drop-shadow(0 0 22px rgba(255,230,150,.55));
+  text-shadow: 0 0 10px rgba(255,255,220,.95), 0 0 26px rgba(255,200,120,.85), 0 0 40px rgba(255,180,230,.75);
+}
+.big-ur::before{
+  content:""; position:absolute; inset:10% 4%; z-index:-1; border-radius:24px;
+  background: radial-gradient(circle at 50% 50%, rgba(10,10,10,.35), rgba(10,10,10,.15), rgba(10,10,10,0) 70%);
+}
+.big-ur .line-caption{
+  position:relative; padding:0 .6em; --line-w: min(24vw, 180px); --line-h: 2px;
+}
+.big-ur .line-caption::before,
+.big-ur .line-caption::after{
+  content:""; position:absolute; top:50%; width:var(--line-w); height:var(--line-h);
+  transform:translateY(-50%);
+  background: linear-gradient(90deg, rgba(255,215,0,0), rgba(255,215,0,.95), rgba(255,215,0,0));
+  box-shadow: 0 0 12px rgba(255,215,0,.75), 0 0 24px rgba(255,200,120,.55);
+}
+.big-ur .line-caption::before{ right:100%; margin-right:.4em; }
+.big-ur .line-caption::after{  left:100%;  margin-left:.4em; }
+
+/* 紙吹雪（SSR買うのみ） */
+.confetti{ position:absolute; width:6px; height:14px; border-radius:2px; top:-20px; opacity:.95; }
+@keyframes fall{ to{ transform: translateY(110vh) rotate(360deg); opacity:.9; } }
+
+.muted{ color:var(--muted); font-size:12px; margin-top:10px; }
+</style>
+</head>
+<body>
+<div id="buy-gacha" class="buy-card" aria-describedby="desc">
+  <h3>買うか買わないか迷ったとき用10連</h3>
+  <p id="desc" class="lead">買わない未来を想像したとき、買う未来を創造するかもしれない10連。</p>
+
+  <button id="gacha10" class="btn-accent" type="button">10連を回す</button>
+
+  <div id="gacha" class="gacha" aria-live="polite">
+    <strong>10連結果</strong>
+    <div id="gachaBanner" class="banner"></div>
+    <div id="gachaGrid" class="gacha-grid"></div>
+  </div>
+
+  <!-- 全画面演出オーバーレイ -->
+  <div id="overlay" class="overlay" aria-hidden="true">
+    <div class="back"></div>
+    <div class="stage">
+      <canvas id="fx" width="720" height="440"></canvas>
+      <div id="flash" class="flash"></div>
+      <button id="skip" class="skip" type="button">SKIP</button>
+      <div id="bigText" class="big-text"></div>
+    </div>
+  </div>
+
+  <p class="muted">※排出率：SSR 3.0％｜Normal 97％（SSRがダブったら…？）</p>
+</div>
+
+<script>
+(function(){
+  /* ===== 排出確率（単発） =====
+     SSR買う=1.5%, SSR買わない=1.5%, 残り48.5%/48.5%
+     → UR(10連) ≈ 1 − (1−p)^10 − (1−q)^10 + (1−p−q)^10
+       （p=q=0.015） ≈ 1.796% → 10連×50回 ≈ 0.9〜1回  */
+  const P = { ssrBuy: 0.015, ssrNo: 0.015, buy: 0.485, no: 0.485 };
+
+  function rollOnce(){
+    const r=Math.random();
+    if(r < P.ssrBuy) return {label:'SSR買う', cls:'b-ssr-buy'};
+    if(r < P.ssrBuy + P.ssrNo) return {label:'SSR買わない', cls:'b-ssr-no'};
+    if(r < P.ssrBuy + P.ssrNo + P.buy) return {label:'買う', cls:'b-buy'};
+    return {label:'買わない', cls:'b-no'};
+  }
+
+  /* ===== DOM ===== */
+  const btn=document.getElementById('gacha10');
+  const wrap=document.getElementById('gacha');
+  const banner=document.getElementById('gachaBanner');
+  const grid=document.getElementById('gachaGrid');
+
+  const overlay=document.getElementById('overlay');
+  const flash=document.getElementById('flash');
+  const bigText=document.getElementById('bigText');
+  const canvas=document.getElementById('fx');
+  const ctx=canvas.getContext('2d');
+
+  /* 演出時間（SSR=3s、UR=4s） */
+  const DURATION = { ssr: 3000, ur: 4000 };
+
+  /* ===== 全画面フィット & スクロール制御 ===== */
+  function fitCanvas(){
+    const w = window.innerWidth, h = window.innerHeight;
+    const scale = window.devicePixelRatio || 1;
+    canvas.style.width = w+'px'; canvas.style.height = h+'px';
+    canvas.width = Math.floor(w*scale); canvas.height = Math.floor(h*scale);
+    ctx.setTransform(scale,0,0,scale,0,0);
+  }
+  window.addEventListener('resize', fitCanvas);
+
+  function lockScroll(lock){
+    if(lock){ document.documentElement.style.overflow='hidden'; document.body.style.overscrollBehavior='contain'; }
+    else{ document.documentElement.style.overflow=''; document.body.style.overscrollBehavior=''; }
+  }
+
+  /* 紙吹雪（SSR買うのみ） */
+  function spawnConfetti(n, colors){
+    const palette = colors || ['#fff3b0','#ffd700','#ffb400','#ff8c00','#ffffff'];
+    for(let i=0;i<n;i++){
+      const c=document.createElement('div');
+      c.className='confetti';
+      c.style.left = Math.random()*100 + 'vw';
+      c.style.background = palette[i % palette.length];
+      const dur = 1 + Math.random()*1.2, delay = Math.random()*0.25;
+      c.style.animation = `fall ${dur}s linear ${delay}s forwards`;
+      c.style.transform = `translateY(-20px) rotate(${Math.random()*120}deg)`;
+      overlay.appendChild(c);
+      setTimeout(()=> c.remove(), (dur+delay)*1000 + 80);
+    }
+  }
+  function clearConfetti(){ overlay.querySelectorAll('.confetti').forEach(el=>el.remove()); }
+
+  /* ===== SSR/UR 演出 ===== */
+  function playFX(kind, done){
+    fitCanvas();
+    overlay.style.display='flex';
+    overlay.setAttribute('aria-hidden','false');
+    clearConfetti(); lockScroll(true);
+    bigText.textContent=''; bigText.className='big-text';
+
+    const t0 = performance.now();
+    const MAX = (kind==='ur') ? DURATION.ur : DURATION.ssr;
+
+    function end(){
+      overlay.style.display='none'; overlay.setAttribute('aria-hidden','true');
+      clearConfetti(); lockScroll(false); done();
+    }
+    function flashOnce(ms=120){ flash.style.opacity='1'; setTimeout(()=> flash.style.opacity='0', ms); }
+
+    if(kind === 'buy'){ // SSR買う：3s + ズーム
+      bigText.textContent='この物欲は天啓…！';
+      bigText.classList.add('big-buy','show','zoom-ssr');
+
+      const STREAKS = [];
+      for(let i=0;i<34;i++){
+        const ang = Math.random()*Math.PI*2, speed = 6 + Math.random()*7;
+        const len = 140 + Math.random()*220, w = 2 + Math.random()*3;
+        const x = canvas.width/2 + Math.cos(ang)*(-80 + Math.random()*160);
+        const y = canvas.height/2 + Math.sin(ang)*(-80 + Math.random()*160);
+        STREAKS.push({x,y, ang, speed, len, w, life: 0});
+      }
+
+      flashOnce(130);
+      spawnConfetti(90); setTimeout(()=> spawnConfetti(70), MAX*0.55); setTimeout(()=> spawnConfetti(60), MAX*0.82);
+
+      function drawStreaks(){
+        ctx.save(); ctx.globalCompositeOperation='lighter';
+        for(const s of STREAKS){
+          s.life += 0.04; s.x += Math.cos(s.ang)*s.speed; s.y += Math.sin(s.ang)*s.speed;
+          const a = Math.max(0, 1 - s.life);
+          ctx.strokeStyle = `rgba(255,215,0,${0.7*a})`; ctx.lineWidth = s.w;
+          ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x - Math.cos(s.ang)*s.len, s.y - Math.sin(s.ang)*s.len); ctx.stroke();
+          ctx.strokeStyle = `rgba(255,200,50,${0.18*a})`; ctx.lineWidth = s.w*2.2;
+          ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x - Math.cos(s.ang)*s.len, s.y - Math.sin(s.ang)*s.len); ctx.stroke();
+        }
+        ctx.restore();
+      }
+      function drawEnvelopeLight(p){
+        const cx=canvas.width/2, cy=canvas.height/2;
+        const r0=Math.max(canvas.width,canvas.height)*0.25, r=r0+p*Math.max(canvas.width,canvas.height)*0.38;
+        const g=ctx.createRadialGradient(cx,cy,Math.max(1,r*0.1), cx,cy,r);
+        g.addColorStop(0,`rgba(255,255,255,${0.9*Math.pow(p,0.9)})`);
+        g.addColorStop(0.35,`rgba(255,215,0,${0.55*Math.pow(p,0.7)})`);
+        g.addColorStop(1,'rgba(255,255,255,0)'); ctx.fillStyle=g;
+        ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+      }
+
+      (function frame(now){
+        const t = now-t0; if(t>MAX){ end(); return; }
+        const p=Math.min(1,t/MAX); ctx.clearRect(0,0,canvas.width,canvas.height);
+        drawStreaks(); drawEnvelopeLight(Math.max(0,p-0.2));
+        requestAnimationFrame(frame);
+      })(performance.now());
+      return;
+    }
+
+    if(kind === 'no'){ // SSR買わない：3s + ズーム
+      bigText.textContent='あっ、あっ、あああっ……！';
+      bigText.classList.add('big-no','show','zoom-ssr');
+
+      const rain=[]; for(let i=0;i<560;i++){ rain.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,vx:-3-Math.random()*2,vy:11+Math.random()*10,len:10+Math.random()*12}); }
+      const boltsAt=[0.42,0.78]; let boltIdx=0;
+
+      function drawBolt(){
+        ctx.save(); ctx.globalCompositeOperation='lighter';
+        let x = canvas.width*(0.25 + Math.random()*0.5), y=0;
+        for(let i=0;i<9;i++){
+          const nx=x+(Math.random()-0.5)*canvas.width*0.22, ny=y+canvas.height/9+Math.random()*16;
+          ctx.strokeStyle='rgba(120,170,255,0.28)'; ctx.lineWidth=12-i*0.8; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(nx,ny); ctx.stroke();
+          ctx.strokeStyle='rgba(185,215,255,0.95)'; ctx.lineWidth=3-i*0.2; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(nx,ny); ctx.stroke();
+          if(i>2 && Math.random()<0.35){ const bx=nx+(Math.random()-0.5)*90, by=ny+Math.random()*100;
+            ctx.strokeStyle='rgba(170,200,255,0.85)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(nx,ny); ctx.lineTo(bx,by); ctx.stroke(); }
+          x=nx; y=ny;
+        }
+        ctx.restore();
+      }
+
+      (function frame(now){
+        const t=now-t0; if(t>MAX){ end(); return; }
+        const p=Math.min(1,t/MAX); ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle=`rgba(0,0,0,${0.25+p*0.35})`; ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.save(); ctx.strokeStyle='rgba(160,190,255,0.78)'; ctx.lineWidth=1.2;
+        for(const r of rain){ ctx.beginPath(); ctx.moveTo(r.x,r.y); ctx.lineTo(r.x+r.vx*0.9, r.y+r.len); ctx.stroke();
+          r.x+=r.vx; r.y+=r.vy; if(r.y>canvas.height){ r.y=-20; r.x=Math.random()*canvas.width; } if(r.x<-20){ r.x=canvas.width+20; } }
+        ctx.restore();
+        if(boltIdx<boltsAt.length && p>=boltsAt[boltIdx]){ flashOnce(100); drawBolt(); boltIdx++; }
+        requestAnimationFrame(frame);
+      })(performance.now());
+      return;
+    }
+
+    if(kind === 'ur'){ // 4s：演出中はキャプションのみ中央固定
+      bigText.innerHTML = '<span class="big-ur"><span class="line-caption">未来はすでに決まっていた</span></span>';
+      bigText.classList.add('show');
+
+      const N=420, col=['#fff3b0','#ffd700','#ff7bd5','#7bd7ff'];
+      const pts = Array.from({length:N}, ()=>({
+        x: Math.random()*canvas.width, y: Math.random()*canvas.height,
+        vx:(Math.random()-0.5)*1.2, vy:(Math.random()-0.5)*1.2, c: col[(Math.random()*col.length)|0]
+      }));
+
+      function drawSwirl(p){
+        ctx.save(); ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.globalCompositeOperation='lighter';
+        for(const s of pts){
+          const ang = Math.atan2(s.y-canvas.height/2, s.x-canvas.width/2) + 0.04;
+          const rad = 0.8 + p*1.2;
+          s.vx += Math.cos(ang+Math.PI/2)*0.06;
+          s.vy += Math.sin(ang+Math.PI/2)*0.06;
+          s.x += s.vx*rad; s.y += s.vy*rad;
+          if(s.x<0) s.x+=canvas.width; if(s.x>canvas.width) s.x-=canvas.width;
+          if(s.y<0) s.y+=canvas.height; if(s.y>canvas.height) s.y-=canvas.height;
+          ctx.fillStyle=s.c; ctx.fillRect(s.x,s.y,2.2,2.2);
+        }
+        const cx=canvas.width/2, cy=canvas.height/2, r=Math.max(180, Math.min(cx,cy)*0.9*p+120);
+        const g=ctx.createRadialGradient(cx,cy,Math.max(1,r*0.15), cx,cy,r);
+        g.addColorStop(0,'rgba(255,255,255,.85)'); g.addColorStop(0.4,'rgba(255,215,0,.45)'); g.addColorStop(1,'rgba(255,255,255,0)');
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+
+      (function frame(now){
+        const t=now-t0;
+        if(t>MAX){ end(); return; } // UR買うは演出内で出さない
+        const p=Math.min(1,t/MAX);
+        drawSwirl(p);
+        requestAnimationFrame(frame);
+      })(performance.now());
+      return;
+    }
+  }
+
+  /* ===== 表示 ===== */
+  function renderGrid(list){
+    grid.innerHTML='';
+    list.forEach((res,i)=>{
+      const d=document.createElement('div');
+      d.className=`chip ${res.cls}`;
+      d.textContent=res.label;
+      setTimeout(()=>d.classList.add('revealed'), 120+i*70);
+      grid.appendChild(d);
+    });
+  }
+
+  function showBanner(kind){
+    banner.style.display='block';
+    if(kind==='ur'){
+      banner.className='banner banner-ur';
+      banner.innerHTML='<span class="banner-text banner-ur-text">【UR】買う</span>';
+    }else if(kind==='buy'){
+      banner.className='banner banner-ssr-buy';
+      banner.innerHTML='<span class="banner-text banner-gold">【SSR】買う</span>';
+    }else{
+      banner.className='banner banner-ssr-no';
+      banner.innerHTML='<span class="banner-text banner-doom">【SSR】買わない</span>';
+    }
+  }
+
+  /* ===== メイン動作 ===== */
+  let locking=false;
+  btn.addEventListener('pointerdown', ()=>{
+    if(locking) return; locking=true; setTimeout(()=>locking=false, 1100);
+
+    // 前回表示をリセット
+    wrap.style.display='none';
+    banner.style.display='none'; banner.className='banner'; banner.innerHTML='';
+    grid.innerHTML='';
+
+    const results = Array.from({length:10}, rollOnce);
+    const hasSSRBuy = results.some(r=>r.label==='SSR買う');
+    const hasSSRNo  = results.some(r=>r.label==='SSR買わない');
+    const hasUR = hasSSRBuy && hasSSRNo; // 同時出現でUR
+
+    const afterFX = (kind)=>{
+      wrap.style.display='block';
+      if(kind) showBanner(kind); else { banner.style.display='none'; renderGrid(results); }
+    };
+
+    if(hasUR)          playFX('ur',  ()=>afterFX('ur'));
+    else if(hasSSRBuy) playFX('buy', ()=>afterFX('buy'));
+    else if(hasSSRNo)  playFX('no',  ()=>afterFX('no'));
+    else               afterFX(null);
+  });
+
+  // SKIP
+  document.getElementById('skip').addEventListener('click', ()=>{
+    overlay.style.display='none'; overlay.setAttribute('aria-hidden','true');
+    overlay.querySelectorAll('.confetti').forEach(el=>el.remove());
+    document.documentElement.style.overflow=''; document.body.style.overscrollBehavior='';
+  });
+
+  // 初期化
+  fitCanvas();
+})();
+</script>
+</body>
+</html>
